@@ -16,15 +16,14 @@ def initialize_database(db_path):
 
     connection = get_connection(db_path)
     try:
-        sql_statement = connection.execute("""
+        connection.execute("""
             CREATE TABLE IF NOT EXISTS movie(
-            id INTEGER PRIMARY KEY,
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
             title TEXT,
             release_year INTEGER,
             rating INTEGER,
             genre TEXT)
         """)
-        connection.execute(sql_statement)
         connection.commit()
     finally:
         connection.close()

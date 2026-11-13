@@ -25,7 +25,7 @@ class MovieStorage:
             connection.executemany(sql_statement, movie)
 
             connection.commit()
-            logger.debug(f"Replaced movies: rows = {len(movie)}")
+            logger.debug(f"Stored movies: rows = {len(movie)}")
         except sqlite3.Error:
             connection.rollback()
             raise
@@ -72,35 +72,40 @@ class MovieStorage:
             connection.close()
 
         
-def count_movies(self):
-    """Return the number of stored movies using SQL COUNT(*)."""
-    connection = get_connection(self.db_path)
-    try:
-        cursor = connection.execute("SELECT COUNT (*) FROM movie")
-        return cursor.fetchone()[0]
-    finally:
-        connection.close()
+    def count_movies(self):
+        """Return the number of stored movies using SQL COUNT(*)."""
+        connection = get_connection(self.db_path)
+        try:
+            cursor = connection.execute("SELECT COUNT (*) FROM movie")
+            return cursor.fetchone()[0]
+        finally:
+            connection.close()
 
 
-def query_movies(self, columns, min_rating, limit):
-    """Return selected fields from matching movies using SQL."""
+    def query_movies(self, columns, min_rating, limit):
+        """Return selected fields from matching movies using SQL."""
 
-    if not columns:
-        logger.error("Select at least one column")
-        raise ValueError("Select at least one column")
-    for column in columns:
-        if column not in MOVIE_COLUMNS:
-            logger.error(f"Column does not exist: {column}")
-            raise ValueError(f"Column does not exist: {column}")
-        
-    selected_columns = ", ".join(["id"] + columns)
-    connection = get_connection(self.db_path)
+        if not columns:
+            logger.error("Select at least one column")
+            raise ValueError("Select at least one column")
+    
+        for column in columns:
+            if column not in MOVIE_COLUMNS:
+                logger.error(f"Column does not exist: {column}")
+                raise ValueError(f"Column does not exist: {column}")
 
-    try:
-        cursor = connection.execute(f" SELECT {selected_columns} FROM movie WHERE rating >= ? ORDER BY rating DESC, id ASC LIMIT ?", (min_rating, limit))
-        rows = cursor.fetchall()
-        result = [dict(row) for row in rows]
-        logger.debug(f"Selected columns: {selected_columns}, row count: {len(result)}")
-        return result
-    finally:
-        connection.close()
+        if "id" in MOVIE_COLUMNS: 
+            selected_columns = ", ".join(["id"] + columns)
+        else:
+            selected_columns = ", ".join(columns)
+    
+        connection = get_connection(self.db_path)
+
+        try:
+            cursor = connection.execute(f" SELECT {selected_columns} FROM movie WHERE rating >= ? ORDER BY rating DESC, id ASC LIMIT ?", (min_rating, limit))
+            rows = cursor.fetchall()
+            result = [dict(row) for row in rows]
+            logger.debug(f"Selected columns: {selected_columns}, row count: {len(result)}")
+            return result
+        finally:
+            connection.close()
