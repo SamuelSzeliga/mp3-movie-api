@@ -38,9 +38,9 @@ class MovieStorage:
 
         connection = get_connection(self.db_path)
         try:
-            cursor = connection.execute("SELECT title, release_year, rating, genre FROM movie ORDER BY id")
+            cursor = connection.execute("SELECT id, title, release_year, rating, genre FROM movie ORDER BY id")
             rows = cursor.fetchall()
-            return pd.DataFrame(rows, columns=MOVIE_COLUMNS)
+            return pd.DataFrame(rows, columns=["id"] + MOVIE_COLUMNS)
         finally:
             connection.close()
 
@@ -94,11 +94,7 @@ class MovieStorage:
                 logger.error(f"Column does not exist: {column}")
                 raise ValueError(f"Column does not exist: {column}")
 
-        if "id" in MOVIE_COLUMNS: 
-            selected_columns = ", ".join(["id"] + columns)
-        else:
-            selected_columns = ", ".join(columns)
-    
+        selected_columns = ", ".join(["id"] + columns)
         connection = get_connection(self.db_path)
 
         try:
