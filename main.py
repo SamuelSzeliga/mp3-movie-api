@@ -5,7 +5,7 @@ from pathlib import Path
 import pandas as pd
 from fastapi import FastAPI, File, HTTPException, Query, UploadFile
 from src._init_ import DatasetInfo, HealthResponse, setup_logging, ProcessConfig, ProcessingReport, log_requests
-from src._init_ import MovieStorage, MovieUploadInfo, MovieDataResponse, MovieProcessingReport
+from src._init_ import MovieStorage, MovieUploadInfo, MovieDataResponse, MovieProcessingReport, MovieCache
 from src.storage import MOVIE_COLUMNS
 from data_pipeline._init_ import create_cleaning_report, process_data, validate_dataframe
 
@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Data Processing API", version="1.0.0")
 storage = MovieStorage()
+cache = MovieCache()
 app.middleware("http")(log_requests)
 
 
@@ -46,6 +47,7 @@ async def upload_movies(file: UploadFile = File(...)):
     df = df[MOVIE_COLUMNS]
 
     storage.save(df)
+    cache.invalidate()
     logger.info(f"Filename: {file.filename}, row count: {len(df)}")
 
     return MovieUploadInfo(filename=file.filename, rows=len(df), columns=len(MOVIE_COLUMNS), column_names=MOVIE_COLUMNS)
@@ -53,7 +55,12 @@ async def upload_movies(file: UploadFile = File(...)):
 
 @app.get("/movies", response_model=MovieDataResponse)
 def get_movies(limit: int = Query(default=100, ge=1)):
-  
+
+    cached_response = cache.get(limit)
+    if cached_response is not None:
+        logger.info(f"Cache HIT, limit: {limit}")
+        return cached_response
+
     df = storage.get()
     if df is None or df.empty:
         logger.info(f"No movies stored")
@@ -61,10 +68,11 @@ def get_movies(limit: int = Query(default=100, ge=1)):
                 "total_rows": 0}
 
     records = df.head(limit).to_dict(orient="records")
+    response = {"data": records, "total_rows": len(df)}
     logger.info(f"Retrieved {len(records)} movies, total number: {len(df)})")
 
-    return {"data": records,
-            "total_rows": len(df)}
+    cache.set(limit, response)
+    return response
 
 
 @app.get("/movies/search", response_model=list[dict])
@@ -168,6 +176,8 @@ def process_movies(config: ProcessConfig):
     cleaning_report = create_cleaning_report(df_before=validated_df, df_after=processed_df)
 
     storage.save(processed_df)
+    cache.invalidate()
+    
     return {
         "validation_rows_removed": validation_rows_removed,
         "cleaning_report": cleaning_report

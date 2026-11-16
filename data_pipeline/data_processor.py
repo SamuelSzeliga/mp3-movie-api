@@ -4,11 +4,14 @@ import yaml
 
 logger = logging.getLogger(__name__)
 
+
 def remove_duplicates(df):
     """Remove duplicate rows."""
 
     before = df.copy()
-    df = df.drop_duplicates()
+
+    columns = [col for col in df.columns if col != "id"]
+    df = df.drop_duplicates(subset=columns)
     logger.debug(f"Remove duplicates: {len(before)-len(df)} rows removed")
     return df
 
@@ -56,7 +59,7 @@ def remove_outliers(df, columns, method, threshold):
         for col in cleaned_columns:
             mean = df[col].mean()
             std = df[col].std()
-            z_scores=([col] - mean) / std
+            z_scores=(df[col] - mean) / std
             df = df[z_scores.abs() <= threshold]
             logger.debug(f"Method: {method}, Threshold: {threshold}, Number of rows removed: {len(before) - len(df)}")
 
@@ -70,30 +73,36 @@ def remove_outliers(df, columns, method, threshold):
 def process_data(df, config):
     """Apply the processing steps enabled in the configuration."""
 
-    if config["processing"].get("remove_duplicates", True):
+    processing = config["processing"]
+    if processing.get("remove_duplicates", True):
         df = remove_duplicates(df)
 
-    if config["processing"].get("missing", {}).get("enabled", True):
-       axis = config["processing"]["missing"].get("axis", "rows")
-       df = handle_missing(df, axis = axis)
+    missing = processing.get("missing", {})
+    if missing.get("enabled", True):
+        axis = missing.get("axis", "rows")
+        df = handle_missing(df, axis=axis)
 
-    if config["processing"].get("missing", {}).get("enabled", True):
-       columns = config["processing"]["outliers"].get("score", [])
-       method = config["processing"]["outliers"].get("method", ())
-       threshold = config["processing"]["outliers"].get("threshold", ())
-       df = remove_outliers(df, columns=columns, method=method, threshold=threshold)
+    outliers = processing.get("outliers", {})
+    if outliers.get("enabled", False):
+        columns = outliers.get("columns", [])
+        method = outliers.get("method", "iqr")
+        threshold = outliers.get("threshold", 1.5)
+
+        df = remove_outliers(df, columns=columns, method=method, threshold=threshold)
 
     return df
 
 
 def create_cleaning_report(df_before, df_after):
     """Return a dictionary summarizing the cleaning results."""
+    cols_before = df_before.drop(columns=["id"], errors="ignore")
+    cols_after= df_after.drop(columns=["id"], errors="ignore")
     report = {
         "rows_before": len(df_before),
         "rows_after": len(df_after),
         "rows_removed": len(df_before) - len(df_after),
-        "columns_before": len(df_before.columns),
-        "columns_after": len(df_after.columns),
-        "columns_removed": len(df_before.columns) - len(df_after.columns)
+        "columns_before": len(cols_before.columns),
+        "columns_after": len(cols_after.columns),
+        "columns_removed": len(cols_before.columns) - len(cols_after.columns)
     }
     return report

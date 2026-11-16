@@ -30,7 +30,7 @@ class MovieStorage:
             connection.rollback()
             raise
         finally:
-            connection.close
+            connection.close()
 
 
     def get(self):
